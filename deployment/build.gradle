@@ -1,0 +1,29 @@
+// Stub sub-project for generating customized builds. Modules may be enabled by including them as dependencies.
+
+plugins {
+    id 'com.github.johnrengelman.shadow' version '6.1.0'
+    id 'java'
+    id 'application'
+}
+
+shadowJar {
+    mainClassName = "net.sentientturtle.discordbot.Main"
+}
+
+tasks.run.workingDir = "$rootDir/WorkingDir"
+tasks.runShadow.workingDir = "$rootDir/WorkingDir"
+
+repositories {
+    mavenCentral()
+    maven {
+        name 'm2-dv8tion'
+        url 'https://m2.dv8tion.net/releases'
+    }
+}
+
+dependencies {
+    implementation project(':core')
+    implementation project(':audio')
+    implementation project(':database')
+    implementation project(':dockermodule')
+}

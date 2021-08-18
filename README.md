@@ -1,0 +1,1 @@
+# Personal discord bot project

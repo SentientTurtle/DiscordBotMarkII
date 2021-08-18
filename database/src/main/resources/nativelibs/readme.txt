@@ -1,0 +1,1 @@
+sqlite4java native dependencies go in this folder; Gradle does not yet support them

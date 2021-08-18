@@ -1,0 +1,6 @@
+rootProject.name = 'DiscordBotMarkII'
+include 'core'
+include 'dockermodule'
+include 'database'
+include 'deployment'
+include 'audio'
