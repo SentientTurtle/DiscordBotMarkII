@@ -1,6 +1,5 @@
 package net.sentientturtle.discordbot.botmodules.convert.units;
 
-import net.sentientturtle.discordbot.botmodules.convert.Convert;
 import net.sentientturtle.discordbot.botmodules.convert.Unit;
 
 import java.math.BigDecimal;
@@ -39,14 +38,14 @@ public enum Mass implements Unit {
     troy_ounces(new BigDecimal("31.1034768").multiply(grams.multiplier), "oz t", "troy ounce", "troy ounces"),
     troy_pounds(new BigDecimal("373.2417216").multiply(grams.multiplier), "lb t", "lbs t", "troy pound", "troy pounds");
 
-    private final Function<BigDecimal, BigDecimal> toBase;
-    private final Function<BigDecimal, BigDecimal> fromBase;
+    private final Function<BigDecimal, BigDecimal> toBaseUnit;
+    private final Function<BigDecimal, BigDecimal> fromBaseUnit;
     private final BigDecimal multiplier;
     private final String[] identifiers;
 
     Mass(BigDecimal multiplier, String... identifiers) {
-        this.toBase = val -> val.multiply(multiplier);
-        this.fromBase = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
+        this.toBaseUnit = val -> val.multiply(multiplier);
+        this.fromBaseUnit = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
         this.multiplier = multiplier;
         this.identifiers = identifiers;
     }
@@ -57,9 +56,9 @@ public enum Mass implements Unit {
     }
 
     @Override
-    public BigDecimal convert(Convert convert, BigDecimal value, Unit to) {
-        if (to instanceof Mass) {
-            return ((Mass) to).fromBase.apply(toBase.apply(value));
+    public BigDecimal convert(BigDecimal value, Unit toUnit) {
+        if (toUnit instanceof Mass) {
+            return ((Mass) toUnit).fromBaseUnit.apply(toBaseUnit.apply(value));
         } else {
             throw new IllegalArgumentException("to-Unit is not of equal type!");
         }

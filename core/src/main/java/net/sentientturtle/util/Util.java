@@ -8,6 +8,12 @@ import java.util.function.Function;
  * Class for assorted utility functions
  */
 public class Util {
+    /**
+     * Throws the passed error as if it were a non-checked exception<br>
+     * In effect, this converts checked exceptions into {@link RuntimeException}s without wrapping.<br>
+     * Primarily used to throw errors in lambdas or functional interfaces
+     * @param e Error to throw
+     */
     @SuppressWarnings("unchecked")
     public static <T, E extends Throwable> T sneakyThrow(Throwable e) throws E {
         throw (E) e;

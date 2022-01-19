@@ -5,7 +5,7 @@ import net.sentientturtle.discordbot.botmodules.convert.Unit;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public enum Currency implements Unit {
     EUR("€", "EUR", "euro"),
@@ -42,13 +42,13 @@ public enum Currency implements Unit {
     THB("฿", "THB", "Thai baht", "baht"),
     ZAR("ZAR", "South African rand", "rand");
 
-    private final BiFunction<Convert, BigDecimal, BigDecimal> toBase;
-    private final BiFunction<Convert, BigDecimal, BigDecimal> fromBase;
+    private final Function<BigDecimal, BigDecimal> toBaseUnit;
+    private final Function<BigDecimal, BigDecimal> fromBaseUnit;
     private final String[] identifiers;
 
     Currency(String... identifiers) {
-        this.toBase = (convert, value) -> value.divide(new BigDecimal(convert.getCurrencyValues().rates.getOrDefault(this.name(), "0")), 4, RoundingMode.HALF_UP);
-        this.fromBase = (convert, value) -> value.multiply(new BigDecimal(convert.getCurrencyValues().rates.getOrDefault(this.name(), "0")));
+        this.toBaseUnit = value -> value.divide(new BigDecimal(Convert.getCurrencyValues().rates.getOrDefault(this.name(), "0")), 4, RoundingMode.HALF_UP);
+        this.fromBaseUnit = value -> value.multiply(new BigDecimal(Convert.getCurrencyValues().rates.getOrDefault(this.name(), "0")));
         this.identifiers = identifiers;
     }
 
@@ -58,9 +58,9 @@ public enum Currency implements Unit {
     }
 
     @Override
-    public BigDecimal convert(Convert convert, BigDecimal value, Unit to) throws ArithmeticException {
-        if (to instanceof Currency) {
-            return ((Currency) to).fromBase.apply(convert, toBase.apply(convert, value));
+    public BigDecimal convert(BigDecimal value, Unit toUnit) throws ArithmeticException {
+        if (toUnit instanceof Currency) {
+            return ((Currency) toUnit).fromBaseUnit.apply(toBaseUnit.apply(value));
         } else {
             throw new IllegalArgumentException("to-Unit is not of equal type!");
         }

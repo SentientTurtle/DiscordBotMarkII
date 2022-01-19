@@ -21,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Bridge object to handle interaction between JDA and LavaPlayer, also provides audio playback status as presence
@@ -29,16 +30,16 @@ public class AudioHandler implements AudioSendHandler, AudioEventListener, Prese
     private final Logger logger = LoggerFactory.getLogger(Audio.class);
     public final AudioPlayer player;
     private ArrayDeque<AudioTrack> queue;
-    private AudioFrame frame;
-    private volatile boolean isPlaying;    // TODO: Check if this really needs to be volatile
-    private boolean isRepeating;
+    private AudioFrame frame;   // Current ~20ms of audio
+    private final AtomicBoolean isPlaying;
+    private final AtomicBoolean isRepeating;
 
     public AudioHandler(@NotNull AudioPlayer player) {
         this.player = player;
         this.queue = new ArrayDeque<>();
         this.frame = null;
-        this.isPlaying = false;
-        this.isRepeating = false;
+        this.isPlaying = new AtomicBoolean(false);
+        this.isRepeating = new AtomicBoolean(false);
         player.addListener(this);
         PresenceManager.registerProvider(this, PresenceImportance.FOREGROUND);
     }
@@ -48,14 +49,22 @@ public class AudioHandler implements AudioSendHandler, AudioEventListener, Prese
         PresenceManager.removeProvider(this);
     }
 
+    /**
+     * Starts playing the next track in the queue if currently playing audio.<br>
+     * If not currently playing audio, simply deletes the first entry in the playback queue
+     */
     public void skip() {
-        if (isPlaying) {
+        if (isPlaying.get()) {
             player.startTrack(queue.pollFirst(), false);
         } else {
             queue.pollFirst();
         }
     }
 
+    /**
+     * Shuffles the playback queue once.<br>
+     * Tracks are still played sequentially, and tracks added after shuffling will be queued sequentially at the end of the current playlist.
+     */
     public void shuffle() {
         var list = Arrays.asList(queue.toArray(AudioTrack[]::new));
         Collections.shuffle(list);
@@ -63,32 +72,64 @@ public class AudioHandler implements AudioSendHandler, AudioEventListener, Prese
     }
 
     public boolean isRepeating() {
-        return this.isRepeating;
+        return this.isRepeating.get();
     }
 
+    /**
+     * @param repeat True to enable repeating, false to disable.
+     * @return The current repeat status
+     */
     public boolean setRepeat(boolean repeat) {
-        this.isRepeating = repeat;
-        return this.isRepeating;
+        this.isRepeating.set(repeat);
+        return this.isRepeating.get();  // In the event of multiple concurrent calls of this method, the last call to return will provide the correct repeat status
     }
 
-    // Has a race condition
+    /**
+     * Makes a best-effort attempt to toggle repeat status<br>
+     * May not toggle if the repeat status is changed concurrently
+     * @return Current repeat status
+     */
     public boolean toggleRepeat() {
-        this.isRepeating = !this.isRepeating;
-        return this.isRepeating;
+        /*
+         * AtomicBoolean does not (yet) support negating the value.
+         * The below code approximates negation by:
+         * 1. Attempt to set the boolean to false only if it is true.
+         * 2. If this succeeds, the value has been negated, and simply return the latest value with #get()
+         * 3. If this fails, attempt to set the boolean to true only if it is still false.
+         * 4. This succeeds if the value has not been mutated concurrently; Step 1 only fails if the value is already false.
+         * 5. This fails if the value has been mutated concurrently and has been changed during this method call. No further attempts are made to mutate the value. The concurrent modification is considered to be the negation.
+         * As compromise, this means the value may not respect all calls to mutate it. For the purposes of this method this compromise is acceptable.
+         */
+        if (!this.isRepeating.compareAndSet(true, false)) {
+            this.isRepeating.compareAndSet(false, true);
+        }
+        return this.isRepeating.get();
     }
 
+    /**
+     * Adds the specified track to the end of the queue, and if not currently playing audio or paused, starts playing the first track in the queue.
+     * @param track Track to add to the playlist
+     */
     public void queueTrack(@NotNull AudioTrack track) {
         queue.addLast(track);
-        if (!player.isPaused() && !isPlaying) {
+        if (!player.isPaused() && !isPlaying.get()) {
             player.startTrack(queue.pollFirst(), false);
         }
     }
 
+    /**
+     * Adds the specified playlist of tracks to the end of the queue, and if not currently playing audio or paused, starts playing the first track in the queue.
+     * @param playlist List of tracks to add to the queue
+     */
     public void queuePlaylist(AudioPlaylist playlist) {
         queue.addAll(playlist.getTracks());
-        if (!player.isPaused() && !isPlaying) {
+        if (!player.isPaused() && !isPlaying.get()) {
             player.startTrack(queue.pollFirst(), false);
         }
+    }
+
+    public int queueLength() {
+        return queue.size();
     }
 
     @Override
@@ -110,32 +151,32 @@ public class AudioHandler implements AudioSendHandler, AudioEventListener, Prese
     @Override
     public void onEvent(AudioEvent event) {
         if (event instanceof PlayerPauseEvent) {
-            this.isPlaying = false;
+            this.isPlaying.set(false);
         } else if (event instanceof PlayerResumeEvent) {
-            this.isPlaying = true;
+            this.isPlaying.set(true);
         } else if (event instanceof TrackEndEvent) {
-            this.isPlaying = false;
-            if (isRepeating) queue.add(((TrackEndEvent) event).track.makeClone());
+            this.isPlaying.set(false);
+            if (isRepeating.get()) queue.add(((TrackEndEvent) event).track.makeClone());
             if (((TrackEndEvent) event).endReason.mayStartNext) player.startTrack(queue.pollFirst(), false);
         } else if (event instanceof TrackExceptionEvent) {
-            this.isPlaying = false;
+            this.isPlaying.set(false);
             logger.debug("Error playing audio track ", ((TrackExceptionEvent) event).exception);
         } else if (event instanceof TrackStartEvent) {
-            this.isPlaying = true;
+            this.isPlaying.set(true);
         } else if (event instanceof TrackStuckEvent) {
-            this.isPlaying = false;
+            this.isPlaying.set(false);
         } else {
-            throw new RuntimeException("Unreachable code!");
+            throw new RuntimeException("Unreachable code; Unknown AudioEvent type: " + event.getClass() + "\t" + event);    // At time of writing, all subclasses of AudioEvent are handled. In the event new subclasses are added, an exception is raised.
         }
     }
 
     @Override
     public Activity getActivity() {
-        if (this.isPlaying) {
+        if (this.isPlaying.get()) {
             String icon;
             if (this.player.isPaused()) {
                 icon = "⏸";
-            } else if (this.isRepeating){
+            } else if (this.isRepeating.get()){
                 icon = "🔁";
             } else {
                 icon = "▶";

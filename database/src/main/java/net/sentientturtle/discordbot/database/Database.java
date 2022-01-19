@@ -27,12 +27,12 @@ public class Database implements StaticLoaded {
     private static final File databasefile;
     private static final SQLiteQueue sqLiteQueue;
 
-    private static final String[] NATIVE_LIBRARY_FILENAMES = {
-            "libsqlite4java-linux-amd64.so",
-            "libsqlite4java-linux-i386.so",
-            "libsqlite4java-osx.dylib",
-            "sqlite4java-win32-x64.dll",
-            "sqlite4java-win32-x86.dll"
+    private static final String[] NATIVE_LIBRARY_FILENAMES = {  // These must be manually updated with a version-bump .-.
+            "libsqlite4java-linux-amd64-1.0.392.so",
+            "libsqlite4java-linux-i386-1.0.392.so",
+            "libsqlite4java-osx-1.0.392.dylib",
+            "sqlite4java-win32-x64-1.0.392.dll",
+            "sqlite4java-win32-x86-1.0.392.dll"
     };
 
     static {
@@ -60,10 +60,14 @@ public class Database implements StaticLoaded {
             }
 
             for (String filename : NATIVE_LIBRARY_FILENAMES) {
-                var path = Path.of(nativelibFolderPath, filename);
+                var path = Path.of(nativelibFolderPath, filename.replace("-1.0.392", ""));  // Required to let SQLite find the native libraries
                 if (!Files.exists(path)) {
                     try (InputStream library = Database.class.getResourceAsStream("/nativelibs/" + filename)) {
-                        Files.copy(library, path);
+                        if (library != null) {
+                            Files.copy(library, path);
+                        } else {
+                            throw new StaticInitException("Could find native library: " + filename);
+                        }
                     } catch (IOException e) {
                         throw new StaticInitException("Could not copy native libraries to folder", e);
                     }
@@ -89,7 +93,7 @@ public class Database implements StaticLoaded {
 
         HealthCheck.addStatic(Database.class, () -> {
                     if (sqLiteQueue.isStopped()) {
-                        return HealthStatus.ERROR_CRITICAL;
+                        return HealthStatus.STOPPED;
                     } else {
                         return HealthStatus.RUNNING;
                     }
@@ -99,6 +103,10 @@ public class Database implements StaticLoaded {
         logger.info("Database opened");
     }
 
+    /**
+     * Pass-through method to {@link SQLiteQueue#execute(SQLiteJob)}
+     * @see SQLiteQueue#execute(SQLiteJob)
+     */
     public static <T, J extends SQLiteJob<T>> J executeSqlite(J job) {
         return sqLiteQueue.execute(job);
     }

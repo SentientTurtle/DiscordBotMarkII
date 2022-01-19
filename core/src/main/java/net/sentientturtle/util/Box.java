@@ -8,11 +8,10 @@ import java.util.function.Supplier;
 
 /**
  * Mutable single-element collection <br>
- * Intended primary for memoization <br>
- * As consequence of having only one element, this collection has the behavior of both single-element lists and single-element sets.
+ * Intended primary for memoization and interior mutability
  * @param <E> Element type
  */
-public class Box<E> implements Collection<E>, List<E>, RandomAccess, Set<E> {
+public class Box<E> implements Collection<E>, RandomAccess {
     private @Nullable E value;
 
     /**
@@ -27,7 +26,7 @@ public class Box<E> implements Collection<E>, List<E>, RandomAccess, Set<E> {
      * @param <E> Element type
      * @return A new empty box
      */
-    public static <E> Box<E> of() {
+    public static <E> Box<E> empty() {
         return new Box<>();
     }
 
@@ -59,7 +58,7 @@ public class Box<E> implements Collection<E>, List<E>, RandomAccess, Set<E> {
         return new Box<>(value);
     }
 
-    public @Nullable E getNullable() {
+    public @Nullable E get() {
         return value;
     }
 
@@ -71,6 +70,14 @@ public class Box<E> implements Collection<E>, List<E>, RandomAccess, Set<E> {
         this.value = value;
     }
 
+    public boolean setIfEmpty(@Nullable E value) {
+        if (this.value != null) {
+            return false;
+        } else {
+            this.value = value;
+            return true;
+        }
+    }
     public E computeIfEmpty(Supplier<E> valueSupplier) {
         if (value != null) {
             return value;
@@ -102,7 +109,7 @@ public class Box<E> implements Collection<E>, List<E>, RandomAccess, Set<E> {
     @NotNull
     @Override
     public Iterator<E> iterator() {
-        return new Iterator<E>() {
+        return new Iterator<>() {
             boolean hasNext = value != null;
             @Nullable E retrievedValue = null;
 
@@ -184,12 +191,6 @@ public class Box<E> implements Collection<E>, List<E>, RandomAccess, Set<E> {
     }
 
     @Override
-    public boolean addAll(int index, @NotNull Collection<? extends E> c) {
-        if (index != 0) throw new IndexOutOfBoundsException();
-        return addAll(c);
-    }
-
-    @Override
     public boolean removeAll(@NotNull Collection<?> c) {
         return c.stream().map(this::remove).reduce(false, Boolean::logicalOr);
     }
@@ -224,140 +225,5 @@ public class Box<E> implements Collection<E>, List<E>, RandomAccess, Set<E> {
                 Spliterator.SUBSIZED |
                 Spliterator.NONNULL
         );
-    }
-
-    /* List methods */
-
-    @Override
-    public E get(int index) {
-        if (index != 0) throw new IndexOutOfBoundsException("Index less than or greater than 0");
-        if (value != null) {
-            return value;
-        } else {
-            throw new IndexOutOfBoundsException("No value in box");
-        }
-    }
-
-    @Override
-    public E set(int index, E element) {
-        Objects.requireNonNull(element);
-        if (index != 0) throw new IndexOutOfBoundsException("Index less than or greater than 0");
-        if (value != null) {
-            E old = value;
-            this.value = element;
-            return old;
-        } else {
-            return null;
-        }
-    }
-
-    @Override
-    public void add(int index, E element) {
-        Objects.requireNonNull(element);
-        if (index != 0 || value != null) throw new IndexOutOfBoundsException();
-        this.value = element;
-    }
-
-    @Override
-    public E remove(int index) {
-        if (index != 0 || value == null) throw new IndexOutOfBoundsException();
-        E oldValue = value;
-        this.value = null;
-        return oldValue;
-    }
-
-    @Override
-    public int indexOf(Object o) {
-        Objects.requireNonNull(o);
-        if (value != null && value.equals(o)) {
-            return 0;
-        } else {
-            return -1;
-        }
-    }
-
-    @Override
-    public int lastIndexOf(Object o) {
-        return indexOf(0);
-    }
-
-    @NotNull
-    @Override
-    public ListIterator<E> listIterator() {
-        return new ListIterator<E>() {
-            int index = 0;
-            @Nullable E retrievedValue = null;
-
-            @Override
-            public boolean hasNext() {
-                return index == 0 && value != null;
-            }
-
-            @Override
-            public E next() {
-                if (index == 0 || value == null) throw new NoSuchElementException();
-                index = 1;
-                retrievedValue = value;
-                return value;
-            }
-
-            @Override
-            public boolean hasPrevious() {
-                return index == 1 && value != null;
-            }
-
-            @Override
-            public E previous() {
-                if (index == 1 || value == null) throw new NoSuchElementException();
-                index = 0;
-                retrievedValue = value;
-                return value;
-            }
-
-            @Override
-            public int nextIndex() {
-                return index + 1;
-            }
-
-            @Override
-            public int previousIndex() {
-                return index - 1;
-            }
-
-            @Override
-            public void remove() {
-                if (retrievedValue == null || value == null) throw new IllegalStateException();
-                value = null;
-            }
-
-            @Override
-            public void set(E e) {
-                if (retrievedValue == null) throw new IllegalStateException();
-                value = Objects.requireNonNull(e);
-            }
-
-            @Override
-            public void add(E e) {
-                if (index != 0 || value != null) throw new IllegalStateException();
-                value = Objects.requireNonNull(e);
-            }
-        };
-    }
-
-    @NotNull
-    @Override
-    public ListIterator<E> listIterator(int index) {
-        if (index != 0) throw new IndexOutOfBoundsException();
-        return listIterator();
-    }
-
-    @NotNull
-    @Override
-    public List<E> subList(int fromIndex, int toIndex) {
-        if (fromIndex != 0) throw new IndexOutOfBoundsException();
-        if (toIndex < 0) throw new IndexOutOfBoundsException();
-        if (toIndex == 0) return List.of();
-        if (toIndex > 1) throw new IndexOutOfBoundsException();
-        return this;
     }
 }

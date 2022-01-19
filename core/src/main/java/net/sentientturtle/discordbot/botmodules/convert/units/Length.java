@@ -1,6 +1,5 @@
 package net.sentientturtle.discordbot.botmodules.convert.units;
 
-import net.sentientturtle.discordbot.botmodules.convert.Convert;
 import net.sentientturtle.discordbot.botmodules.convert.Unit;
 
 import java.math.BigDecimal;
@@ -60,9 +59,9 @@ public enum Length implements Unit {
     }
 
     @Override
-    public BigDecimal convert(Convert convert, BigDecimal value, Unit to) {
-        if (to instanceof Length) {
-            return ((Length) to).fromBase.apply(toBase.apply(value));
+    public BigDecimal convert(BigDecimal value, Unit toUnit) {
+        if (toUnit instanceof Length) {
+            return ((Length) toUnit).fromBase.apply(toBase.apply(value));
         } else {
             throw new IllegalArgumentException("to-Unit is not of equal type!");
         }

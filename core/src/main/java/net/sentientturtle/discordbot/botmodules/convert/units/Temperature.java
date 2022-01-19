@@ -1,6 +1,5 @@
 package net.sentientturtle.discordbot.botmodules.convert.units;
 
-import net.sentientturtle.discordbot.botmodules.convert.Convert;
 import net.sentientturtle.discordbot.botmodules.convert.Unit;
 
 import java.math.BigDecimal;
@@ -39,19 +38,19 @@ public enum Temperature implements Unit {
     rankine(new BigDecimal("9.0").divide(new BigDecimal("5.0"), RoundingMode.HALF_UP), "R", "Rankine", "rankine", "°R", "degrees Rankine", "degrees rankine");
 
 
-    private final Function<BigDecimal, BigDecimal> toBase;
-    private final Function<BigDecimal, BigDecimal> fromBase;
+    private final Function<BigDecimal, BigDecimal> toBaseUnit;
+    private final Function<BigDecimal, BigDecimal> fromBaseUnit;
     private final String[] identifiers;
 
-    Temperature(Function<BigDecimal, BigDecimal> toBase, Function<BigDecimal, BigDecimal> fromBase, String... identifiers) {
-        this.toBase = toBase;
-        this.fromBase = fromBase;
+    Temperature(Function<BigDecimal, BigDecimal> toBaseUnit, Function<BigDecimal, BigDecimal> fromBaseUnit, String... identifiers) {
+        this.toBaseUnit = toBaseUnit;
+        this.fromBaseUnit = fromBaseUnit;
         this.identifiers = identifiers;
     }
 
     Temperature(BigDecimal multiplier, String... identifiers) {
-        this.toBase = val -> val.multiply(multiplier);
-        this.fromBase = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
+        this.toBaseUnit = val -> val.multiply(multiplier);
+        this.fromBaseUnit = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
         this.identifiers = identifiers;
     }
 
@@ -61,9 +60,9 @@ public enum Temperature implements Unit {
     }
 
     @Override
-    public BigDecimal convert(Convert convert, BigDecimal value, Unit to) {
-        if (to instanceof Temperature) {
-            return ((Temperature) to).fromBase.apply(toBase.apply(value));
+    public BigDecimal convert(BigDecimal value, Unit toUnit) {
+        if (toUnit instanceof Temperature) {
+            return ((Temperature) toUnit).fromBaseUnit.apply(toBaseUnit.apply(value));
         } else {
             throw new IllegalArgumentException("to-Unit is not of equal type!");
         }

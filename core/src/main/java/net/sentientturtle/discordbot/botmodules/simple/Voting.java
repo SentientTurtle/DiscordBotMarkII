@@ -1,135 +1,179 @@
 package net.sentientturtle.discordbot.botmodules.simple;
 
-import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageEmbed;
-import net.dv8tion.jda.api.entities.MessageReaction;
-import net.dv8tion.jda.api.entities.TextChannel;
-import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent;
+import net.dv8tion.jda.api.MessageBuilder;
+import net.dv8tion.jda.api.entities.MessageChannel;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.sentientturtle.discordbot.components.core.Core;
 import net.sentientturtle.discordbot.components.core.Scheduling;
+import net.sentientturtle.discordbot.components.interaction.SelectionMenuManager;
 import net.sentientturtle.discordbot.components.module.BotModule;
-import net.sentientturtle.discordbot.components.module.command.annotation.ATextCommand;
-import net.sentientturtle.discordbot.helpers.ErrorHelper;
+import net.sentientturtle.discordbot.components.module.command.Command;
+import net.sentientturtle.discordbot.components.module.command.CommandCall;
+import net.sentientturtle.discordbot.components.permission.BotPermission;
 import net.sentientturtle.util.TimeFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
-import static net.dv8tion.jda.api.Permission.MESSAGE_WRITE;
 
 /**
  * Module that provides commands to run votes, as well as exposing an API for other modules to run votes.
  */
 public class Voting extends BotModule {
-    private static final String[] reactionEmoji = {"1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"};
-    private static final long MAXIMUM_VOTE_DURATION = 24;
+    private static final Logger logger = LoggerFactory.getLogger(Voting.class);
+    private static final long MAXIMUM_VOTE_DURATION_HOURS = 24;
+    private static final AtomicLong voteCount = new AtomicLong(0);
+    private static final ConcurrentHashMap<Long, Vote> runningVotes = new ConcurrentHashMap<>();
     private static final Random random = new Random();
 
-    public static void runVote(String voteTitle, TextChannel channel, List<String> options, Consumer<String> onComplete, long voteDuration, TimeUnit durationUnit) {
-        if (options.size() > reactionEmoji.length) throw new IllegalArgumentException("Too many options!");
+    private static class Vote {
+        private final int[] results;
+        private final Set<Long> votedUsers;
 
-        StringBuilder optionList = new StringBuilder();
-        for (int i = 0; i < options.size(); i++) {
-            optionList.append(reactionEmoji[i]).append(" ").append(options.get(i));
-            if (i < options.size() - 1) optionList.append("\n");
-        };
+        public final String name;
+        public final List<String> options;
+        public final Consumer<String> onComplete;
+        public final long channelID;
+        public final long messageID;
 
-        var embedBuilder = new EmbedBuilder()
-                                   .setTitle(voteTitle)
-                                   .setDescription("Vote lasts " + TimeFormat.formatWDHMS(voteDuration, durationUnit) + " from start")
-                                   .addField("Use reactions to vote", optionList.toString(), false);
-
-        var content = new EmbedBuilder(embedBuilder).build();    // Make a clone, we'll be using the same embed later
-        long channelID = channel.getIdLong();
-        channel.sendMessageEmbeds(content)
-                .queue(message -> {
-                    long messageID = message.getIdLong();
-                    for (int i = 0; i < options.size(); i++) {
-                        message.addReaction(reactionEmoji[i]).queue();
-                    }
-
-                    Scheduling.schedule(
-                            () -> {
-                                //noinspection ConstantConditions       #getJDA May not NPE; This is only ever called after JDA has initialised
-                                Message updatedMessage = Core.getJDA().getTextChannelById(channelID)
-                                                                 .retrieveMessageById(messageID)
-                                                                 .complete();
-
-                                int maxCount = -1;
-                                int[] counts = new int[options.size()];
-
-                                for (int i = 0; i < options.size(); i++) {
-                                    String optionEmoji = reactionEmoji[i];
-                                    int count = updatedMessage.getReactions().stream()
-                                                        .filter(r -> r.getReactionEmote().getName().equals(optionEmoji))
-                                                        .findFirst()
-                                                        .map(MessageReaction::getCount)
-                                                        .orElse(-1);
-                                    counts[i] = count;
-                                    if (count > maxCount) {
-                                        maxCount = count;
-                                    }
-                                }
-
-                                ArrayList<String> winningOptions = new ArrayList<>(options.size());
-                                for (int i = 0; i < options.size(); i++) {
-                                    if (counts[i] == maxCount) {
-                                        winningOptions.add(options.get(i));
-                                    }
-                                }
-
-                                String winner = winningOptions.get(random.nextInt(winningOptions.size()));
-
-                                MessageEmbed embedUpdate = embedBuilder.setDescription(null).addField("Vote ended", "Winner: " + winner, false).build();
-                                message.editMessageEmbeds(embedUpdate).queue();
-                                onComplete.accept(winner);
-                            },
-                            voteDuration,
-                            durationUnit
-                    );
-                });
+        public Vote(String name, List<String> options, Consumer<String> onComplete, long channelID, long messageID) {
+            this.name = name;
+            this.results = new int[options.size()];
+            this.options = Collections.unmodifiableList(options);
+            this.onComplete = onComplete;
+            this.channelID = channelID;
+            this.messageID = messageID;
+            votedUsers = Collections.synchronizedSet(new HashSet<>());
+        }
     }
 
-    @ATextCommand(syntax = "vote <duration> <option1, option2, ...>", helpText = "Stops all docker configurations", discordPermissions = {MESSAGE_WRITE})
-    public void vote(String args, GuildMessageReceivedEvent event, EnumSet<Permission> selfPermissions) {
-        final String[] split = args.split(" ", 2);
-        if (split.length > 1) {
-            String durationString = split[0];
-            String optionString = split[1];
+    public static void runVote(String voteTitle, MessageChannel channel, List<String> options, Consumer<String> onComplete, long voteDuration, TimeUnit durationUnit, BotPermission votePermission) throws IllegalArgumentException {
+        if (options.size() < 1) throw new IllegalArgumentException("Too few options!");
+        if (options.size() > 25) throw new IllegalArgumentException("Too many options!");
+        long voteID = voteCount.getAndIncrement();
 
-            try {
-                long duration = Long.parseLong(durationString, 0, durationString.length() - 1, 10);
-                TimeUnit durationUnit = switch (durationString.substring(durationString.length() - 1)) {
-                    case "s", "S" -> TimeUnit.SECONDS;
-                    case "m", "M" -> TimeUnit.MINUTES;
-                    case "h", "H" -> TimeUnit.HOURS;
-                    default -> throw new NumberFormatException("Invalid timeunit");  // Rather nasty control-flow exception, but we must catch anyway. (see Long#parseLong above)
-                };
+        channel.sendMessage(
+                new MessageBuilder()
+                        .append(voteTitle, MessageBuilder.Formatting.BOLD).append('\n')
+                        .append("Vote lasts ").append(TimeFormat.formatWDHMS(voteDuration, durationUnit)).append(".\n")
+                        .append("Use selection box to vote, you may select multiple options.")
+                        .setActionRows(ActionRow.of(SelectionMenuManager.newSelect(
+                                "Select options to vote",
+                                selectionMenuEvent -> {
+                                    var vote = runningVotes.get(voteID);
+                                    if (vote != null) {
+                                        if (vote.votedUsers.add(selectionMenuEvent.getUser().getIdLong())) {
+                                            selectionMenuEvent.deferReply(true).setContent("Vote accepted!").queue();
+                                            for (String selectedValue : selectionMenuEvent.getValues()) {
+                                                vote.results[Integer.parseInt(selectedValue)]++;
+                                            }
+                                        } else {
+                                            selectionMenuEvent.deferReply(true).setContent("You have already voted!").queue();
+                                        }
+                                    } else {
+                                        selectionMenuEvent.deferReply(true).setContent("Vote has already ended!").queue();
+                                    }
+                                },
+                                () -> runningVotes.containsKey(voteID),
+                                votePermission,
+                                options.toArray(String[]::new)
+                        )))
+                        .build()
+        ).queue(message -> runningVotes.put(voteID, new Vote(voteTitle, options, onComplete, channel.getIdLong(), message.getIdLong())));
 
-                if (durationUnit.toHours(duration) < MAXIMUM_VOTE_DURATION) {
-                    List<String> options = Arrays.stream(optionString.split(","))
-                                                   .map(String::trim)
-                                                   .filter(s -> !s.isBlank())
-                                                   .collect(Collectors.toList());
-                    if (options.size() >= 2) {
-                        runVote("User vote", event.getChannel(), options, s -> {}, duration, durationUnit);
+        Scheduling.schedule(
+                () -> {
+                    var vote = runningVotes.remove(voteID);
+                    if (vote != null) {
+
+                        var maxVotes = Arrays.stream(vote.results).max().orElse(0);
+                        List<Integer> winners = new ArrayList<>(vote.results.length);
+                        for (int i = 0; i < vote.results.length; i++) {
+                            if (vote.results[i] == maxVotes) {
+                                winners.add(i);
+                            }
+                        }
+                        var winningOption = vote.options.get(winners.get(random.nextInt(winners.size())));
+
+                        // noinspection ConstantConditions       #getJDA May not NPE; This is only ever called after JDA has initialised
+                        var textChannel = Core.getJDA().getTextChannelById(vote.channelID);
+                        if (textChannel != null) {
+                            textChannel.retrieveMessageById(vote.messageID)
+                                    .complete()
+                                    .editMessage(
+                                            new MessageBuilder()
+                                                    .append(vote.name, MessageBuilder.Formatting.BOLD).append('\n')
+                                                    .append("Vote has ended.\n")
+                                                    .append("Winner: ").append(winningOption, MessageBuilder.Formatting.BLOCK)
+                                                    .build()
+                                    )
+                                    .queue();
+                        }
+
+                        vote.onComplete.accept(winningOption);
                     } else {
-                        ErrorHelper.reportFromGuildEvent(event, selfPermissions, "⚠", "You must specify at least two options");
+                        logger.warn("Vote #" + voteID + " was deleted before finishing!");
                     }
+                },
+                voteDuration,
+                durationUnit
+        );
+    }
+
+    @Command(description = "Run a vote")
+    public void runvote(
+            CommandCall commandCall,
+            @Command.Parameter(name = "duration", description = "Duration of the vote") String durationString,
+            @Command.Parameter(name = "options", description = "Options to choose between, separated by commas.") String optionString,
+            @Command.Parameter(name = "role", description = "Only users from this role may vote", optional = true) Role permissionRole
+    ) {
+        try {
+            long duration = Long.parseLong(durationString, 0, durationString.length() - 1, 10);
+            TimeUnit durationUnit = switch (durationString.substring(durationString.length() - 1)) {
+                case "s", "S" -> TimeUnit.SECONDS;
+                case "m", "M" -> TimeUnit.MINUTES;
+                case "h", "H" -> TimeUnit.HOURS;
+                default -> throw new NumberFormatException("Invalid timeunit");  // Rather nasty control-flow exception, but we must catch anyway. (see Long#parseLong above)
+            };
+
+            if (durationUnit.toHours(duration) < MAXIMUM_VOTE_DURATION_HOURS) {
+                List<String> options = Arrays.stream(optionString.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .collect(Collectors.toList());
+                if (options.size() >= 2) {
+                    for (int i = 0; i < options.size(); i++) {
+                        if (options.get(i).length() > 25) {
+                            commandCall.error("⚠ Option #" + i + " too long! (Length must be <= 25)");
+                            return;
+                        }
+                    }
+                    commandCall.reply("Holding vote...", true);
+                    var member = commandCall.getMember();
+
+                    BotPermission votePermission;
+                    if (permissionRole != null) {
+                        votePermission = BotPermission.ROLE(permissionRole);
+                    } else {
+                        votePermission = BotPermission.EVERYONE();
+                    }
+                    runVote("User vote by " + member.getEffectiveName(), commandCall.getChannel(), options, s -> {}, duration, durationUnit, votePermission);
                 } else {
-                    ErrorHelper.reportFromGuildEvent(event, selfPermissions, "⚠", "vote duration too long!");
+                    commandCall.error("⚠ You must specify at least two options");
                 }
-            } catch (IndexOutOfBoundsException | NumberFormatException e) {
-                ErrorHelper.reportFromGuildEvent(event, selfPermissions, "⚠", "Invalid duration");
-            } catch (IllegalArgumentException ignored) {
-                ErrorHelper.reportFromGuildEvent(event, selfPermissions, "⚠", "Too many options");
+            } else {
+                commandCall.error("⚠ vote duration too long!");
             }
-        } else {
-            ErrorHelper.reportFromGuildEvent(event, selfPermissions, "⚠", "You must specify a duration and at least two options");
+        } catch (IndexOutOfBoundsException | NumberFormatException e) {
+            commandCall.error("⚠ Invalid duration");
+        } catch (IllegalArgumentException ignored) {
+            commandCall.error("⚠ Too many options");
         }
     }
 }

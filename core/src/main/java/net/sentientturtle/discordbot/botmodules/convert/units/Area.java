@@ -1,6 +1,5 @@
 package net.sentientturtle.discordbot.botmodules.convert.units;
 
-import net.sentientturtle.discordbot.botmodules.convert.Convert;
 import net.sentientturtle.discordbot.botmodules.convert.Unit;
 
 import java.math.BigDecimal;
@@ -41,14 +40,14 @@ public enum Area implements Unit {
     // Nautical
     square_nautical_miles(new BigDecimal("1852.0").multiply(new BigDecimal("1852.0")).multiply(square_metres.multiplier), "sq NM", "sq nmi", "square nautical mile", "square nautical miles");
 
-    private final Function<BigDecimal, BigDecimal> toBase;
-    private final Function<BigDecimal, BigDecimal> fromBase;
+    private final Function<BigDecimal, BigDecimal> toBaseUnit;
+    private final Function<BigDecimal, BigDecimal> fromBaseUnit;
     private final BigDecimal multiplier;
     private final String[] identifiers;
 
     Area(BigDecimal multiplier, String... identifiers) {
-        this.toBase = val -> val.multiply(multiplier);
-        this.fromBase = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
+        this.toBaseUnit = val -> val.multiply(multiplier);
+        this.fromBaseUnit = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
         this.multiplier = multiplier;
         this.identifiers = identifiers;
     }
@@ -59,9 +58,9 @@ public enum Area implements Unit {
     }
 
     @Override
-    public BigDecimal convert(Convert convert, BigDecimal value, Unit to) {
-        if (to instanceof Area) {
-            return ((Area) to).fromBase.apply(toBase.apply(value));
+    public BigDecimal convert(BigDecimal value, Unit toUnit) {
+        if (toUnit instanceof Area) {
+            return ((Area) toUnit).fromBaseUnit.apply(toBaseUnit.apply(value));
         } else {
             throw new IllegalArgumentException("to-Unit is not of equal type!");
         }

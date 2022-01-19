@@ -2,7 +2,7 @@ package net.sentientturtle.discordbot.components.presence;
 
 import net.dv8tion.jda.api.JDA;
 import net.sentientturtle.discordbot.components.core.Core;
-import net.sentientturtle.discordbot.components.core.ExclusiveFeatures;
+import net.sentientturtle.discordbot.components.core.FeatureLock;
 import net.sentientturtle.discordbot.components.core.Scheduling;
 import net.sentientturtle.discordbot.components.healthcheck.HealthCheck;
 import net.sentientturtle.discordbot.components.healthcheck.HealthStatus;
@@ -21,7 +21,7 @@ public class PresenceManager implements StaticLoaded {
     private static final Map<PresenceImportance, LinkedList<WeakReference<PresenceProvider>>> providers;
 
     static {
-        ExclusiveFeatures.lockOrThrow(PresenceManager.class, ExclusiveFeatures.PRESENCE);
+        FeatureLock.lockOrThrow(PresenceManager.class, FeatureLock.PRESENCE);
         providers = Arrays.stream(PresenceImportance.values())
                             .collect(Collectors.toMap(
                                     Function.identity(),    // keys
@@ -30,7 +30,7 @@ public class PresenceManager implements StaticLoaded {
 
         Scheduling.scheduleAtFixedRate(PresenceManager::update, 10, 10, TimeUnit.SECONDS);
 
-        HealthCheck.addStatic(PresenceManager.class, () -> Core.getJDA() != null ? HealthStatus.RUNNING : HealthStatus.INITIALISING);
+        HealthCheck.addStatic(PresenceManager.class, () -> Core.getJDA() != null ? HealthStatus.RUNNING : HealthStatus.STARTING);
     }
 
     /**
@@ -79,4 +79,5 @@ public class PresenceManager implements StaticLoaded {
             }
         }
     }
+
 }

@@ -16,8 +16,7 @@ public class Main {
         }
         System.setProperty("org.slf4j.simpleLogger.showDateTime", "true");
         System.setProperty("org.slf4j.simpleLogger.dateTimeFormat", "yyyy-MM-dd HH:mm:ss");
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
-        System.setProperty("sqlite4java.library.path", "./nativelibs"); // TODO: Check if this has been made obsolete by Database module's automatic unpacking
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "info");
 
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();

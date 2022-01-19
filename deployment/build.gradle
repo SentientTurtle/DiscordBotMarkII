@@ -6,8 +6,14 @@ plugins {
     id 'application'
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_16
+    targetCompatibility = JavaVersion.VERSION_16
+}
+
 shadowJar {
     mainClassName = "net.sentientturtle.discordbot.Main"
+    archiveFileName = "discordbot.jar"
 }
 
 tasks.run.workingDir = "$rootDir/WorkingDir"

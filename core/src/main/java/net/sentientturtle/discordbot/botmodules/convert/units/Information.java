@@ -1,6 +1,5 @@
 package net.sentientturtle.discordbot.botmodules.convert.units;
 
-import net.sentientturtle.discordbot.botmodules.convert.Convert;
 import net.sentientturtle.discordbot.botmodules.convert.Unit;
 
 import java.math.BigDecimal;
@@ -44,13 +43,13 @@ public enum Information implements Unit {
     zebibytes(new BigDecimal("1180591620717410000000.00").multiply(new BigDecimal("8")), "ZiB", "zebibyte"),
     yobibytes(new BigDecimal("1208925819614630000000000.00").multiply(new BigDecimal("8")), "YiB", "yobibyte");
 
-    private final Function<BigDecimal, BigDecimal> toBase;
-    private final Function<BigDecimal, BigDecimal> fromBase;
+    private final Function<BigDecimal, BigDecimal> toBaseUnit;
+    private final Function<BigDecimal, BigDecimal> fromBaseUnit;
     private final String[] identifiers;
 
     Information(BigDecimal multiplier, String... identifiers) {
-        this.toBase = val -> val.multiply(multiplier);
-        this.fromBase = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
+        this.toBaseUnit = val -> val.multiply(multiplier);
+        this.fromBaseUnit = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
         this.identifiers = identifiers;
     }
 
@@ -60,9 +59,9 @@ public enum Information implements Unit {
     }
 
     @Override
-    public BigDecimal convert(Convert convert, BigDecimal value, Unit to) {
-        if (to instanceof Information) {
-            return ((Information) to).fromBase.apply(toBase.apply(value));
+    public BigDecimal convert(BigDecimal value, Unit toUnit) {
+        if (toUnit instanceof Information) {
+            return ((Information) toUnit).fromBaseUnit.apply(toBaseUnit.apply(value));
         } else {
             throw new IllegalArgumentException("to-Unit is not of equal type!");
         }

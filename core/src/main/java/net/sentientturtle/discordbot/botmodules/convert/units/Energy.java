@@ -1,6 +1,5 @@
 package net.sentientturtle.discordbot.botmodules.convert.units;
 
-import net.sentientturtle.discordbot.botmodules.convert.Convert;
 import net.sentientturtle.discordbot.botmodules.convert.Unit;
 
 import java.math.BigDecimal;
@@ -52,13 +51,13 @@ public enum Energy implements Unit {
     zeptoWatthours(new BigDecimal("1.00E-21").multiply(new BigDecimal("3600")), "zWh", "zeptoWatt-hour", "zeptoWatt-hours", "zeptoWatthour", "zeptoWatthours"),
     yoctoWatthours(new BigDecimal("1.00E-24").multiply(new BigDecimal("3600")), "yWh", "yoctoWatt-hour", "yoctoWatt-hours", "yoctoWatthour", "yoctoWatthours");
 
-    private final Function<BigDecimal, BigDecimal> toBase;
-    private final Function<BigDecimal, BigDecimal> fromBase;
+    private final Function<BigDecimal, BigDecimal> toBaseUnit;
+    private final Function<BigDecimal, BigDecimal> fromBaseUnit;
     private final String[] identifiers;
 
     Energy(BigDecimal multiplier, String... identifiers) {
-        this.toBase = val -> val.multiply(multiplier);
-        this.fromBase = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
+        this.toBaseUnit = val -> val.multiply(multiplier);
+        this.fromBaseUnit = val -> val.divide(multiplier, 4, RoundingMode.HALF_UP);
         this.identifiers = identifiers;
     }
 
@@ -68,9 +67,9 @@ public enum Energy implements Unit {
     }
 
     @Override
-    public BigDecimal convert(Convert convert, BigDecimal value, Unit to) {
-        if (to instanceof Energy) {
-            return ((Energy) to).fromBase.apply(toBase.apply(value));
+    public BigDecimal convert(BigDecimal value, Unit toUnit) {
+        if (toUnit instanceof Energy) {
+            return ((Energy) toUnit).fromBaseUnit.apply(toBaseUnit.apply(value));
         } else {
             throw new IllegalArgumentException("to-Unit is not of equal type!");
         }

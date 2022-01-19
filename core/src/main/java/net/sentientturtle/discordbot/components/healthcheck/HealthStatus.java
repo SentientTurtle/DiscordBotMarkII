@@ -1,24 +1,27 @@
 package net.sentientturtle.discordbot.components.healthcheck;
 
+/**
+ * Health status enum
+ */
 public enum HealthStatus {
-    READY {              // Ready; Uninitialized but not requiring initialization
-        public String asIcon() {
-            return "✅";
-        }
-    },
-    UNINITIALISED {
+    PAUSED {
         public String asIcon() {
             return "⏸";
         }
     },
-    INITIALISING {
+    STARTING {
         public String asIcon() {
-            return "⏩";
+            return "🔜";
         }
     },
     RUNNING {
         public String asIcon() {
-            return "▶";
+            return "🆙";
+        }
+    },
+    SHUTTING_DOWN {
+        public String asIcon() {
+            return "🔙";
         }
     },
     RECOVERING {
@@ -26,22 +29,17 @@ public enum HealthStatus {
             return "🔄";
         }
     },
-    SHUTTING_DOWN {
-        public String asIcon() {
-            return "⏪";
-        }
-    },
     STOPPED {
         public String asIcon() {
             return "⏹";
         }
     },
-    ERROR_NONCRITICAL {
+    ERROR_NONCRITICAL {     // Continued (partial) functionality available
         public String asIcon() {
             return "⚠";
         }
     },
-    ERROR_CRITICAL {
+    ERROR_CRITICAL {        // Functionality no longer available
         public String asIcon() {
             return "🆘";
         }

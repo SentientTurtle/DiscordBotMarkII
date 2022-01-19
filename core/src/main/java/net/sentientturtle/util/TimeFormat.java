@@ -3,7 +3,7 @@ package net.sentientturtle.util;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Utility class for consistent time formatting
+ * Utility class for consistent-throughout-the-project time formatting
  */
 public class TimeFormat {
     public static String formatWDHMS(long time, TimeUnit unit) {

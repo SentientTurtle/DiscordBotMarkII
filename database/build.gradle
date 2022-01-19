@@ -3,8 +3,8 @@ plugins {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_15
-    targetCompatibility = JavaVersion.VERSION_15
+    sourceCompatibility = JavaVersion.VERSION_16
+    targetCompatibility = JavaVersion.VERSION_16
 }
 
 group 'net.sentientturtle'
@@ -32,7 +32,21 @@ repositories {
     }
 }
 
+configurations {
+    native_libs
+}
+
+task installNativeLibs(type: Copy) {
+    from configurations.native_libs into "$sourceSets.main.output.resourcesDir/nativelibs"
+}
+compileJava.dependsOn installNativeLibs
+
 dependencies {
     implementation project(':core')
     implementation 'com.almworks.sqlite4java:sqlite4java:1.0.392'
+    native_libs group: 'com.almworks.sqlite4java', name: 'sqlite4java-win32-x64', version: '1.0.392'
+    native_libs group: 'com.almworks.sqlite4java', name: 'sqlite4java-win32-x86', version: '1.0.392'
+    native_libs group: 'com.almworks.sqlite4java', name: 'libsqlite4java-linux-amd64', version: '1.0.392'
+    native_libs group: 'com.almworks.sqlite4java', name: 'libsqlite4java-linux-i386', version: '1.0.392'
+    native_libs group: 'com.almworks.sqlite4java', name: 'libsqlite4java-osx', version: '1.0.392'
 }

@@ -1,5 +1,8 @@
 package net.sentientturtle.discordbot.components;
 
+/**
+ * Exception to signify errors in static initialization of classes.
+ */
 public class StaticInitException extends RuntimeException {
     public StaticInitException() {
     }

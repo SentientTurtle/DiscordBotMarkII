@@ -4,7 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 
 import java.io.IOException;
 
-public class PersistenceException extends Exception {
+/**
+ * Superclass of persistence exceptions, see subclasses.
+ */
+public class PersistenceException extends RuntimeException {
     public PersistenceException() {
     }
 

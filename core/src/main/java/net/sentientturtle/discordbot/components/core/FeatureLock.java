@@ -3,13 +3,13 @@ package net.sentientturtle.discordbot.components.core;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Class to handle lockout of JDA/Bot features that cannot be used by multiple modules at once.
+ * Class to handle locking of JDA/Bot features that cannot be used by multiple modules at once.
  */
-public enum ExclusiveFeatures {
+public enum FeatureLock {
     VOICE,
     PRESENCE;
 
-    private static final Class<?>[] locks = new Class<?>[ExclusiveFeatures.values().length];
+    private static final Class<?>[] locks = new Class<?>[FeatureLock.values().length];
 
     /**
      * Attempt to lock a feature on behalf of a class.
@@ -17,7 +17,7 @@ public enum ExclusiveFeatures {
      * @param feature Feature to lock
      * @return True if lock was (previously) acquired for class, false if feature has been locked by another class
      */
-    public static synchronized boolean tryLock(@NotNull Class<?> lockingClass, @NotNull ExclusiveFeatures feature) {
+    public static synchronized boolean tryLock(@NotNull Class<?> lockingClass, @NotNull FeatureLock feature) {
         if (locks[feature.ordinal()] == null) {
             locks[feature.ordinal()] = lockingClass;
             return true;
@@ -32,7 +32,7 @@ public enum ExclusiveFeatures {
      * @param feature Feature to lock
      * @throws IllegalStateException If lock could not be acquired
      */
-    public static synchronized void lockOrThrow(@NotNull Class<?> lockingClass, @NotNull ExclusiveFeatures feature) throws IllegalStateException {
+    public static synchronized void lockOrThrow(@NotNull Class<?> lockingClass, @NotNull FeatureLock feature) throws IllegalStateException {
         if (!tryLock(lockingClass, feature)) {
             throw new IllegalStateException("Attempted to lock " + feature.name() + " but it was already taken by " + locks[feature.ordinal()]);
         }
@@ -45,9 +45,9 @@ public enum ExclusiveFeatures {
      * @param features Features to lock
      * @return True if all features could be locked, false otherwise
      */
-    public static synchronized boolean tryAtomicLock(@NotNull Class<?> lockingClass, @NotNull ExclusiveFeatures... features) {
+    public static synchronized boolean tryAtomicLock(@NotNull Class<?> lockingClass, @NotNull FeatureLock... features) {
         boolean success = true;
-        for (ExclusiveFeatures feature : features) {
+        for (FeatureLock feature : features) {
             success &= tryLock(lockingClass, feature);
         }
         if (!success) tryUnlock(lockingClass, features);
@@ -61,9 +61,9 @@ public enum ExclusiveFeatures {
      * @param features Features to lock
      * @throws IllegalStateException If the lock on any of the specified features could not be acquired
      */
-    public static synchronized void atomicLockOrThrow(@NotNull Class<?> lockingClass, @NotNull ExclusiveFeatures... features) throws IllegalStateException {
+    public static synchronized void atomicLockOrThrow(@NotNull Class<?> lockingClass, @NotNull FeatureLock... features) throws IllegalStateException {
         try {
-            for (ExclusiveFeatures feature : features) {
+            for (FeatureLock feature : features) {
                 lockOrThrow(lockingClass, feature);
             }
         } catch (IllegalStateException e) {
@@ -76,20 +76,18 @@ public enum ExclusiveFeatures {
      * Attempts to unlock the specified features.
      * Will only unlock features locked on behalf of the specified class.
      * If any specified feature is locked by another class, it will remain locked by that class.
-     * No-op if zero features are specified. (Returns 0)
+     * No-op if zero features are specified.
      * @param unlockingClass Class for whom to unlock
      * @param features Features to unlock
-     * @return Amount of features unlocked
      */
-    public static synchronized int tryUnlock(@NotNull Class<?> unlockingClass, @NotNull ExclusiveFeatures... features) {
+    public static synchronized void tryUnlock(@NotNull Class<?> unlockingClass, @NotNull FeatureLock... features) {
         int unlocked = 0;
-        for (ExclusiveFeatures feature : features) {
+        for (FeatureLock feature : features) {
             if (unlockingClass.equals(locks[feature.ordinal()])) {
                 locks[feature.ordinal()] = null;
                 unlocked++;
             }
         }
-        return unlocked;
     }
 
     /**
@@ -102,8 +100,8 @@ public enum ExclusiveFeatures {
      * @param features Features to unlock
      * @throws IllegalArgumentException If any of the specified
      */
-    public static synchronized void unlockOrThrow(@NotNull Class<?> unlockingClass, @NotNull ExclusiveFeatures... features) throws IllegalArgumentException {
-        for (ExclusiveFeatures feature : features) {
+    public static synchronized void unlockOrThrow(@NotNull Class<?> unlockingClass, @NotNull FeatureLock... features) throws IllegalArgumentException {
+        for (FeatureLock feature : features) {
             if (unlockingClass.equals(locks[feature.ordinal()])) {
                 locks[feature.ordinal()] = null;
             } else {

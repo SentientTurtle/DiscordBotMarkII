@@ -28,6 +28,10 @@ import java.util.function.Supplier;
 import static net.sentientturtle.discordbot.components.persistence.PersistenceException.ObjectLoadFailed;
 import static net.sentientturtle.discordbot.components.persistence.PersistenceException.ResourceLoadFailed;
 
+/**
+ * Class to handle data persistence.<br>
+ * Dumps and loads data to yaml files, for more robust storage use Database module.
+ */
 public class Persistence implements StaticLoaded {
     private static final Logger logger = LoggerFactory.getLogger(Persistence.class);
     private static final File dataFolder;
@@ -36,6 +40,7 @@ public class Persistence implements StaticLoaded {
     private static final ObjectMapper yamlMapper;
     private static final HashMap<Class<? extends PersistentObject>, PersistentObject> objectCache = new HashMap<>();
     private static final ScheduledFuture<?> saveDaemon;
+    private static boolean failedSave = false;
 
     static {
         String dataFolderPath = System.getProperty("net.sentientturtle.discordbot.datafolderpath");
@@ -73,6 +78,8 @@ public class Persistence implements StaticLoaded {
                 () -> {
                     if (saveDaemon.isDone() && !saveDaemon.isCancelled()) {
                         return Optional.of("Save Daemon stopped by exception");
+                    } else if (failedSave) {
+                        return Optional.of("Error saving; Check log");
                     } else {
                         return Optional.empty();
                     }
@@ -132,6 +139,7 @@ public class Persistence implements StaticLoaded {
                 yamlMapper.writeValue(datafile, value);
             } catch (IOException e) {
                 logger.error("Unable to save [" + key.getCanonicalName() + "]", e);
+                failedSave = true;
             }
         }
     }

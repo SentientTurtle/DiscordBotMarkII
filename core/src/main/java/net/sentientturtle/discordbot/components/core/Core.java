@@ -4,7 +4,6 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.managers.AccountManager;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
@@ -34,20 +33,15 @@ public class Core implements StaticLoaded {
     private static boolean isInitialised = false;
     private static final CoreSettings settings;
     static {
-        try {
-            settings = Persistence.loadObject(CoreSettings.class, CoreSettings::new);
-        } catch (PersistenceException e) {
-            throw new StaticInitException(e);
-        }
-    }
+        settings = Persistence.loadObject(CoreSettings.class, CoreSettings::new);
+        if (settings.targetGuild == -1 || settings.token.equals("[NO TOKEN]")) throw new StaticInitException("Target guild ID and API token must be set!");
 
-    static {
         HealthCheck.addStatic(
                 Core.class,
                 () -> {
-                    if (!isInitialised) return HealthStatus.UNINITIALISED;
+                    if (!isInitialised) return HealthStatus.PAUSED;
                     return switch (jda.getStatus()) {
-                        case INITIALIZING, INITIALIZED, LOGGING_IN, CONNECTING_TO_WEBSOCKET, IDENTIFYING_SESSION, AWAITING_LOGIN_CONFIRMATION, LOADING_SUBSYSTEMS -> HealthStatus.INITIALISING;
+                        case INITIALIZING, INITIALIZED, LOGGING_IN, CONNECTING_TO_WEBSOCKET, IDENTIFYING_SESSION, AWAITING_LOGIN_CONFIRMATION, LOADING_SUBSYSTEMS -> HealthStatus.STARTING;
                         case CONNECTED -> HealthStatus.RUNNING;
                         case DISCONNECTED, RECONNECT_QUEUED, WAITING_TO_RECONNECT, ATTEMPTING_TO_RECONNECT -> HealthStatus.RECOVERING;
                         case SHUTTING_DOWN -> HealthStatus.SHUTTING_DOWN;
@@ -62,9 +56,10 @@ public class Core implements StaticLoaded {
     public static void init() throws PersistenceException, InterruptedException, LoginException {
         if (isInitialised) return;
         try {
-            EventManager eventManager = new EventManager(settings.targetGuild);
+            Loader.ensureStaticLoad();
 
-            Loader.loadStatic(Core.class.getClassLoader());
+            EventManager eventManager = new EventManager();
+
 
             jda = JDABuilder
                           .create(
@@ -93,22 +88,19 @@ public class Core implements StaticLoaded {
 
             for (Guild guild : jda.getGuilds()) {
                 if (guild.getIdLong() != settings.targetGuild) {
-                    logger.error("Bot is in non-target guild: " + guild.getName());
+                    var guildName = guild.getName();
+                    logger.error("Bot is in non-target guild: " + guildName + "; Attempting to leave...");
+                    guild.leave().queue(v -> logger.error("Left non-target guild: " + guildName));
                 } else {
                     logger.info("Bot is connected to target guild: " + guild.getName());
 
-                    // This has the intentional side effect of statically initializing ModuleManager
-                    ModuleManager.preloadCaches(
-                            guild.getTextChannels()
-                                    .stream()
-                                    .mapToLong(TextChannel::getIdLong)
-                    );
+                    ModuleManager.registerCommands();
                 }
             }
 
             Shutdown.registerHook(jda::shutdown);
             isInitialised = true;
-            logger.info("Module initialised!");
+            logger.info("Bot initialised!");
             System.out.println("Bot initialised!");
         } catch (Exception e) {
             logger.error("Unable to initialize core!", e);
@@ -121,13 +113,26 @@ public class Core implements StaticLoaded {
         return jda;
     }
 
+    public static @Nullable Guild getGuild() {
+        if (jda != null) {
+            return jda.getGuildById(settings.targetGuild);
+        } else {
+            return null;
+        }
+    }
+
     public static long targetGuildId() {
         return settings.targetGuild;
+    }
+
+    public static boolean isRebootEnabled() {
+        return settings.rebootEnabled;
     }
 
     private static class CoreSettings implements PersistentObject {
         public String token = "[NO TOKEN]";
         public String username = "Generic Bot Username";
         public Long targetGuild = (long) -1;
+        public boolean rebootEnabled = false;
     }
 }
