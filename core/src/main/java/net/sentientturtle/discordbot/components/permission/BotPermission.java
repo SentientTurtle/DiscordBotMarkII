@@ -85,7 +85,7 @@ public class BotPermission {
      */
     public Optional<String> getString() {
         if (this.type == Type.STRING) {
-            return Optional.of((String) value);
+            return Optional.of((String) this.value);
         } else {
             return Optional.empty();
         }

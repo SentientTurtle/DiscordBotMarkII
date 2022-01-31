@@ -1,7 +1,6 @@
 package net.sentientturtle.discordbot.components.healthcheck;
 
 import net.sentientturtle.discordbot.loader.StaticLoaded;
-import net.sentientturtle.util.Tuple2;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -33,16 +32,19 @@ public class HealthCheck implements StaticLoaded {
         instance_map.put(object, new HealthUpdateSupplier(statusSupplier, statusMessageSupplier));
     }
 
+    /**
+     * Helper record
+     */
+    private record NamedHealthUpdateSupplier(String name, HealthUpdateSupplier supplier) {}
     public static Collection<String> getMessages() {
         return Stream.concat(
-                        static_map.entrySet().stream().map(entry -> Tuple2.of(entry.getKey().getSimpleName(), entry.getValue())),
-                        instance_map.entrySet().stream().map(entry -> Tuple2.of(entry.getKey().getClass().getSimpleName(), entry.getValue()))
-                ).map(tuple -> {
-                    assert tuple.one != null && tuple.two != null;
-                    var name = tuple.one;
-                    var icon = tuple.two.statusSupplier.get().asIcon();
-                    var message = tuple.two.statusMessageSupplier.get();
-                    return String.format("%s %-16s\t%s", icon, name, message.orElse(""));
+                        static_map.entrySet().stream().map(entry -> new NamedHealthUpdateSupplier(entry.getKey().getSimpleName(), entry.getValue())),
+                        instance_map.entrySet().stream().map(entry -> new NamedHealthUpdateSupplier(entry.getKey().getClass().getSimpleName(), entry.getValue()))
+                ).map(namedHealthUpdate -> {
+                    assert namedHealthUpdate.name != null && namedHealthUpdate.supplier != null;
+                    var icon = namedHealthUpdate.supplier.statusSupplier.get().asIcon();
+                    var message = namedHealthUpdate.supplier.statusMessageSupplier.get();
+                    return String.format("%s %-16s\t%s", icon, namedHealthUpdate.name, message.orElse(""));
                 })
                 .collect(Collectors.toList());
     }
